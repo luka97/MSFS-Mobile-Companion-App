@@ -29,7 +29,7 @@
 					<!-- Ladning Details -->
 					<div class="col" style="margin-top:0px">
 						<div class="lead" style="margin-bottom:10px">Simulation Rate</div>
-						<p style="margin-bottom:5px">Current simlation rate : <span id="sim-rate">N/A</span>x</p>
+						<p style="margin-bottom:5px">Current simulation rate : <span id="sim-rate">N/A</span>x</p>
 						<button type="button" onclick="triggerSimEvent ('SIM_RATE_DECR', 0, true); $(this).blur();" class="btn btn-secondary" style="width:42px" title="Decrease sim rate.">-</button>
 						<button type="button" onclick="triggerSimEvent ('PAUSE_OFF', 1, true); $(this).blur();" class="btn btn-secondary" style="width:42px" title="Active pause off."><svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-play" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M10.804 8L5 4.633v6.734L10.804 8zm.792-.696a.802.802 0 0 1 0 1.392l-6.363 3.692C4.713 12.69 4 12.345 4 11.692V4.308c0-.653.713-.998 1.233-.696l6.363 3.692z"/></svg></button>
 						<button type="button" onclick="triggerSimEvent ('PAUSE_ON', 1, true); $(this).blur();" class="btn btn-secondary" style="width:42px" title="Active pause On."><svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-pause" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M6 3.5a.5.5 0 0 1 .5.5v8a.5.5 0 0 1-1 0V4a.5.5 0 0 1 .5-.5zm4 0a.5.5 0 0 1 .5.5v8a.5.5 0 0 1-1 0V4a.5.5 0 0 1 .5-.5z"/></svg></button>
@@ -59,7 +59,29 @@
 						<p class="font-italic text-secondary" style="margin-bottom:0px">You will lose your existing GPS track line when switching between display modes.</p>
 					</div>
 				</div>
+
+				<hr class="bg-secondary">
 				
+				<!-- Fourth Row-->
+				<div class="row">
+					<!-- Import KML -->
+					<div class="col" style="margin-top:0px">
+						<div class="lead" style="margin-bottom:10px">Import KML file</div>
+						<div class="input-group mb-3">
+							<div class="input-group-prepend">
+								<span class="input-group-text" id="kml-file-input-addon">Upload</span>
+							</div>
+							<div class="custom-file">
+								<input type="file" class="custom-file-input" id="kml-file-input" aria-describedby="kml-file-input-addon" accept=".kml">
+								<label class="custom-file-label" for="kml-file-input">Choose file</label>
+							</div>
+						</div>
+						<button type="button" onclick="deleteKMLOverlay()" id="kml-delete" class="btn btn-secondary disabled" title="Delete KML overlay">Delete</button>
+						<button type="button" onclick="loadKMLOverlay()" id="kml-load" class="btn btn-secondary disabled" title="Load KML overlay">Load</button>
+						<p class="font-italic text-secondary" style="margin-bottom:0px">Load or delete your KML file. You can only add one KML file!</p>
+					</div>
+				</div>
+
 				<hr class="bg-secondary">
 
 				<!-- Last Row Information -->
@@ -76,3 +98,71 @@
 			</div>
 		</div>
 	</div>
+	<script>
+		// Initialize the Bootstrap Custom file info plugin when the document is loaded
+		$(document).ready(function () {
+  		bsCustomFileInput.init()
+		})
+
+		$('#kml-file-input').on('change', (e) => {
+			if(e.target.value){
+				$('#kml-load').removeClass('disabled');
+			} else {
+				$('#kml-load').addClass('disabled');
+			}
+		})
+
+		var currentKMLTrack = undefined;
+
+		function loadKMLOverlay(){
+			let file = document.querySelector('#kml-file-input').files[0];
+
+			// Load kml file
+			let reader = new FileReader();
+			reader.onload = (e)=>
+			{
+				try {
+					const kmltext = e.target.result;
+
+					//Create new kml overlay
+					const parser = new DOMParser();
+					const kml = parser.parseFromString(kmltext, 'text/xml');
+
+					const track = new L.KML(kml);
+					map.addLayer(track);
+
+					// Only allow one overlay, otherwise we have to create an overlay manager to select which overlays to delete
+					deleteKMLOverlay();
+					currentKMLTrack = track;
+
+					// Update the UI
+					$('#kml-delete').removeClass('disabled');
+					$('#kml-load').removeClass('btn-secondary').removeClass('btn-danger').addClass('btn-success');
+					temporaryAlert("KML Import", "KML file imported succesfully", "success");
+
+					// Adjust map to show the kml
+					const bounds = track.getBounds();
+					map.fitBounds(bounds);
+				} catch(e) {
+					console.error(e);
+					$('#kml-load').removeClass('btn-secondary').removeClass('btn-success').addClass('btn-danger');
+					temporaryAlert("KML Import", "Error when importing KML file!", "error", 2000);
+				}
+			};
+			reader.readAsBinaryString(file);
+		}
+
+		function deleteKMLOverlay(){
+			if(currentKMLTrack){
+				// Remove KML layer
+				map.removeLayer(currentKMLTrack)
+
+				// Reset every UI element that changes its state based on the status of the KML import
+				currentKMLTrack = undefined;
+				$('#kml-delete').addClass('disabled');
+				$('#kml-load').removeClass('btn-danger').removeClass('btn-success').addClass('btn-secondary');
+				document.querySelector('#kml-file-input').value = '';
+				document.querySelector('#kml-file-input').dispatchEvent(new Event('change'))
+			}
+		}
+	</script>
