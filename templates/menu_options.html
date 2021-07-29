@@ -66,6 +66,11 @@
 				<div class="row">
 					<!-- Import KML -->
 					<div class="col" style="margin-top:0px">
+						<div class="lead" style="margin-bottom:10px">KML files on the server</div>
+						<p class="font-italic text-secondary" style="margin-bottom:0px">You can add KML files in the same directory as the Mobile Companion App executable and they will appear here. Click on them to toggle their visibility. Grenn is visible, red is invisible. Note, you must restart the app when you change the files.</p>
+						<div class="list-group" id="kml-server-file-list" style="display: inline-flex;">
+							<h4 class="pl-2">No server files</h4>
+						</div>
 						<div class="lead" style="margin-bottom:10px">Import KML file</div>
 						<div class="input-group mb-3">
 							<div class="input-group-prepend">
@@ -111,6 +116,8 @@
 				$('#kml-load').addClass('disabled');
 			}
 		})
+
+		loadKMLOverlaysFromServer()
 
 		var currentKMLTrack = undefined;
 
@@ -163,6 +170,92 @@
 				$('#kml-load').removeClass('btn-danger').removeClass('btn-success').addClass('btn-secondary');
 				document.querySelector('#kml-file-input').value = '';
 				document.querySelector('#kml-file-input').dispatchEvent(new Event('change'))
+			}
+		}
+
+		// List of KML files on the server. Each entry is an object containing the name of the file, its content, its current visibility status and its leaflet ID
+		var serverKMLs = []
+
+		async function loadKMLOverlaysFromServer(){
+			response = await fetch("/kml");
+			list = await response.json();
+
+			for(const filename of list){
+				rawFile = await fetch("/kml/" + filename);
+
+				// If the file doesn't exist ignore it
+				if(rawFile.status !== 200)
+					continue;
+				
+				file = await rawFile.text();
+				
+				//Create new kml overlay
+				const parser = new DOMParser();
+				const kml = parser.parseFromString(file, 'text/xml');
+
+				const track = new L.KML(kml);
+				map.addLayer(track);
+
+				serverKMLs.push({
+					name: filename,
+					contents: file,
+					visible: true,
+					leafletID: track
+				});
+			}
+
+			createServerKMLsUI()
+		}
+
+		function createServerKMLsUI(){
+			if(serverKMLs.length == 0)
+				return;
+			
+			//<button type="button" class="list-group-item"></button>
+			button = document.createElement("button");
+			button.setAttribute("type", "button");
+			button.className = "list-group-item";
+
+			document.querySelector("#kml-server-file-list").innerHTML = "";
+
+			for(let overlay of serverKMLs){
+				// Clone the basae button
+				newButton = button.cloneNode();
+				// Add the name of the file to the button
+				newButton.innerHTML = overlay.name;
+				// Set the correct colors based on visibility (should be always success)
+				newButton.classList.add(overlay.visible ? "list-group-item-success" : "list-group-item-danger");
+				// Add a data attribute used when toggling the visibilty
+				newButton.setAttribute("data-kml-name", overlay.name);
+				// Set a click listener to toggle visibilty
+				newButton.onclick = e => toggleServerKMLOverlayVisibility(e.target.dataset.kmlName, e.target);
+
+				// Append the button to the list
+				document.querySelector("#kml-server-file-list").appendChild(newButton);
+			}
+		}
+
+		function toggleServerKMLOverlayVisibility(name, button){
+			// Get the reference to the requested overlay
+			overlay = serverKMLs.find(value => value.name === name);
+			if(overlay.visible){
+				map.removeLayer(overlay.leafletID);
+				overlay.leafletID = null;
+				overlay.visible = false;
+				button.classList.remove("list-group-item-success")
+				button.classList.add("list-group-item-danger")
+			} else {
+				//Create new kml overlay
+				const parser = new DOMParser();
+				const kml = parser.parseFromString(overlay.contents, 'text/xml');
+
+				const track = new L.KML(kml);
+				map.addLayer(track);
+
+				overlay.leafletID = track;
+				overlay.visible = true;
+				button.classList.remove("list-group-item-danger")
+				button.classList.add("list-group-item-success")
 			}
 		}
 	</script>

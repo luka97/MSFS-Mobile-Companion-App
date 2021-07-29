@@ -1,4 +1,5 @@
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, jsonify, render_template, request, abort
+from werkzeug.wrappers import response
 from SimConnect import *
 from SimConnect.simconnect_mobiflight import SimConnectMobiFlight
 from SimConnect.mobiflight_variable_requests import MobiFlightVariableRequests
@@ -10,6 +11,7 @@ import socket
 import asyncio
 from threading import Thread
 import datetime
+import os
 
 print(socket.gethostbyname(socket.gethostname()))
 
@@ -20,9 +22,17 @@ sm = None
 ae = None
 selected_plane = ""
 
+# list of kml files in program directroy
+kml_list = []
+
+cwd = os.path.realpath(os.path.join(
+    os.getcwd(), os.path.dirname(__file__)))
+files = os.listdir(cwd)
+for file in files:
+    if(file.endswith("kml")):
+        kml_list.append(file)
+
 # Flask WebApp
-
-
 def flask_thread_func(threadname):
 
     global ui_friendly_dictionary
@@ -63,6 +73,7 @@ def flask_thread_func(threadname):
         "PA-28R Arrow III GNS530 (Just Flight)": [["NAV", "nav_jf_arrow_gns"], ["COM", "com_jf_arrow_gns"], ["AP", "ap_jf_arrow"], ["GPS", "gns530"], ["Panel", "panel_jf_arrow"], ["Other", "other_no_spd_ailr"]],
         "PA-28R Arrow III GNS Dual (Just Flight)": [["NAV", "nav_jf_arrow_gnsdual"], ["COM", "com_jf_arrow_gnsdual"], ["AP", "ap_jf_arrow"], ["GPS", "gnsdual_jf_arrow"], ["Panel", "panel_jf_arrow"], ["Other", "other_no_spd_ailr"]]
     }
+
     global selected_plane
     selected_plane = planes_list[0]
     ui_friendly_dictionary["selected_plane"] = selected_plane
@@ -94,6 +105,19 @@ def flask_thread_func(threadname):
             selected_plane = cur_plane_select
             ui_friendly_dictionary["selected_plane"] = selected_plane
         return render_template('glass_landscape.html', planes_list=planes_list, selected_plane=selected_plane, curr_plane=planes_dict[selected_plane])
+
+    # returns the list of available KML files
+    @app.route('/kml', methods=["GET"])
+    def get_list_of_kmls():
+        return jsonify(kml_list)
+
+    # returns the requested KML file or 404 if the file is not found
+    @app.route('/kml/<file>', methods=["GET"])
+    def get_kml_file_content(file):
+        try:
+            return read_file(file)
+        except:
+            return abort(404)
 
     def trigger_event(event_name, value_to_use=None):
         # This function actually does the work of triggering the event
@@ -281,8 +305,6 @@ def flask_thread_func(threadname):
     app.run(host='0.0.0.0', port=4000, debug=False)
 
 # SimConnect  App
-
-
 def simconnect_thread_func(threadname):
 
     global ui_friendly_dictionary
@@ -515,8 +537,6 @@ def simconnect_thread_func(threadname):
         # sleep(0.3)
 
 # SimConnect  App 2
-
-
 def simconnect_thread_func2(threadname):
 
     global ui_friendly_dictionary
@@ -550,8 +570,6 @@ def simconnect_thread_func2(threadname):
         asyncio.run(ui_dictionary(ui_friendly_dictionary))
 
 # SimConnect LVAR Reading
-
-
 def simconnect_thread_func3(threadname):
 
     global ui_friendly_dictionary
@@ -715,6 +733,19 @@ def simconnect_thread_func3(threadname):
             else:
                 ui_friendly_dictionary["PMDG_DC6_COM2_SPACING"] = "Toggle COM2 Spacing: 8.33KHz"
         sleep(0.15)
+
+
+# Reads a file from the filesystem.
+# @param filename the name of the file to read
+# @param directory the directory where the file is located. Defaults to CWD
+def read_file(filename, directory=cwd):
+    path = os.path.join(directory, filename)
+    contents = None
+    with open(path, "r") as file:
+        contents = file.read()
+        file.close()
+
+    return contents
 
 
 if __name__ == "__main__":
