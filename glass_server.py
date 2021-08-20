@@ -741,7 +741,7 @@ def simconnect_thread_func3(threadname):
 def read_file(filename, directory=cwd):
     path = os.path.join(directory, filename)
     contents = None
-    with open(path, "r") as file:
+    with open(path, "rb") as file:
         contents = file.read()
         file.close()
 
