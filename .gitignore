@@ -1,1 +1,10 @@
-*.kml
+# Directories to ignore
+__pycache__/
+build/
+dist/
+SimConnect/__pycache__/
+
+# Files to ignore
+.*
+SimConnect/SimConnect.dllc
+glass_server.spec
